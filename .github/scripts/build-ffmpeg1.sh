@@ -1,29 +1,66 @@
-!/bin/bash
-
+#!/bin/bash
 set -eu
 
-FFMPEG_MODULE_PATH="$1"
-echo "FFMPEG_MODULE_PATH is ${FFMPEG_MODULE_PATH}"
-NDK_PATH="$2"
+FFMPEG_MODULE_PATH="${MEDIA3_PATH}/libraries/decoder_ffmpeg/src/main"
+GD_PATH="${MEDIA3_PATH}/libraries/decoder_ffmpeg/build.gradle"
+
+echo "
+android {
+    namespace 'androidx.media3.decoder.ffmpeg'
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+        }
+    }
+}
+ext {
+     releaseArtifactId = 'media3-decode-ffmpeg'
+     releaseName = 'Media3 ffmpeg module'
+     }
+     apply from: '../../publish.gradle'
+">>"${GD_PATH}"
+
+#cat "${GD_PATH}"
+
+echo "Build FFmpeg"
+echo $ANDROID_NDK_HOME
+echo $NDK_PATH
+ANDROID_ABI=19
+HOST_PLATFORM="linux-x86_64"
+ENABLED_DECODERS=(vorbis opus flac alac pcm_mulaw pcm_alaw mp3 aac ac3 eac3 dca mlp truehd libarcdav3a)
+
+
 echo "NDK path is ${NDK_PATH}"
-HOST_PLATFORM="$3"
+echo "FFMPEG_MODULE_PATH is ${FFMPEG_MODULE_PATH}"
 echo "Host platform is ${HOST_PLATFORM}"
-ANDROID_ABI="$4"
 echo "ANDROID_ABI is ${ANDROID_ABI}"
-ENABLED_DECODERS=("${@:5}")
 echo "Enabled decoders are ${ENABLED_DECODERS[@]}"
-JOBS="$(nproc 2> /dev/null || sysctl -n hw.ncpu 2> /dev/null || echo 4)"
+
+
+cd "${FFMPEG_MODULE_PATH}/jni"
+
+rm -rf ffmpeg
+
+git clone --depth=1 -b release/6.0  git://source.ffmpeg.org/ffmpeg
+cd ffmpeg
+FFMPEG_PATH="$(pwd)"
+pwd
+
+JOBS=$(nproc 2> /dev/null || sysctl -n hw.ncpu 2> /dev/null || echo 4)
 echo "Using $JOBS jobs for make"
+
+
 COMMON_OPTIONS="
     --target-os=android
-    --disable-static
-    --enable-shared
+    --enable-static
+    --disable-shared
     --disable-doc
     --disable-programs
     --disable-everything
     --disable-avdevice
-    --enable-avformat
-    --enable-swscale
+    --disable-avformat
+    --disable-swscale
     --disable-postproc
     --disable-avfilter
     --disable-symver
@@ -37,19 +74,13 @@ COMMON_OPTIONS="
     --disable-decoder=av1
     "
 TOOLCHAIN_PREFIX="${NDK_PATH}/toolchains/llvm/prebuilt/${HOST_PLATFORM}/bin"
-if [[ ! -d "${TOOLCHAIN_PREFIX}" ]]
-then
-    echo "Please set correct NDK_PATH, $NDK_PATH is incorrect"
-    exit 1
-fi
-
 for decoder in "${ENABLED_DECODERS[@]}"
 do
     COMMON_OPTIONS="${COMMON_OPTIONS} --enable-decoder=${decoder}"
 done
 
 ARMV7_CLANG="${TOOLCHAIN_PREFIX}/armv7a-linux-androideabi${ANDROID_ABI}-clang"
-if [[ ! -e "$ARMV7_CLANG" ]]
+if [[ -e "${TOOLCHAIN_PREFIX}" && ! -e "$ARMV7_CLANG" ]]
 then
     echo "AVMv7 Clang compiler with path $ARMV7_CLANG does not exist"
     echo "It's likely your NDK version doesn't support ANDROID_ABI $ANDROID_ABI"
@@ -63,7 +94,6 @@ then
     ANDROID_ABI_64BIT=21
 fi
 
-cd "${FFMPEG_MODULE_PATH}/jni/ffmpeg"
 ./configure \
     --libdir=android-libs/armeabi-v7a \
     --arch=arm \
