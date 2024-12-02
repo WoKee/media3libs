@@ -30,8 +30,8 @@ jobs:
       - name: Checkout Media3
         uses: actions/checkout@v4
         with:
-          repository: androidx/media
-          ref: release
+          repository: rabbitknight/media
+          ref: av3a_1.4.1
           path: media
 
       - uses: actions/setup-java@v4
