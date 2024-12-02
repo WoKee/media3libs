@@ -28,8 +28,8 @@ echo $ANDROID_NDK_HOME
 echo $NDK_PATH
 ANDROID_ABI=19
 HOST_PLATFORM="linux-x86_64"
-ENABLED_DECODERS=(vorbis opus flac alac pcm_mulaw pcm_alaw mp3 aac ac3 eac3 dca mlp truehd libarcdav3a)
-
+ENABLED_DECODERS=("${@:5}")
+echo "Enabled decoders are ${ENABLED_DECODERS[@]}"
 
 echo "NDK path is ${NDK_PATH}"
 echo "FFMPEG_MODULE_PATH is ${FFMPEG_MODULE_PATH}"
@@ -42,7 +42,7 @@ cd "${FFMPEG_MODULE_PATH}/jni"
 
 rm -rf ffmpeg
 
-git clone --depth=1 -b release/6.0  git://source.ffmpeg.org/ffmpeg
+git clone --depth=1 -b release/6.1  git://source.ffmpeg.org/ffmpeg
 cd ffmpeg
 FFMPEG_PATH="$(pwd)"
 pwd
