@@ -40,10 +40,10 @@ echo "Enabled decoders are ${ENABLED_DECODERS[@]}"
 
 cd "${FFMPEG_MODULE_PATH}/jni"
 
-rm -rf ffmpeg
+rm -rf ffmpeg-av3a
 
 git clone --depth=1 -b main  https://github.com/WoKee/ffmpeg-av3a.git
-cd ffmpeg
+cd ffmpeg-av3a
 FFMPEG_PATH="$(pwd)"
 pwd
 
