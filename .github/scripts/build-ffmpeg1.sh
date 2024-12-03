@@ -1,12 +1,13 @@
 #!/bin/bash
 set -eu
 
-FFMPEG_MODULE_PATH="${MEDIA3_PATH}/libraries/decoder_ffmpeg/src/main"
-GD_PATH="${MEDIA3_PATH}/libraries/decoder_ffmpeg/build.gradle"
+FFMPEG_MODULE_PATH="${MEDIA3_PATH}/libraries/decoder_vp9/src/main"
+
+GD_PATH="${MEDIA3_PATH}/libraries/decoder_vp9/build.gradle"
 
 echo "
 android {
-    namespace 'androidx.media3.decoder.ffmpeg'
+    namespace 'androidx.media3.decoder.vp9'
 
     publishing {
         singleVariant('release') {
@@ -15,137 +16,116 @@ android {
     }
 }
 ext {
-     releaseArtifactId = 'media3-decode-ffmpeg'
-     releaseName = 'Media3 ffmpeg module'
+     releaseArtifactId = 'media3-decode-vp9'
+     releaseName = 'Media3 vp9 module'
      }
      apply from: '../../publish.gradle'
 ">>"${GD_PATH}"
 
 #cat "${GD_PATH}"
 
-echo "Build FFmpeg"
+echo "Build vp9"
 echo $ANDROID_NDK_HOME
 echo $NDK_PATH
 ANDROID_ABI=19
 HOST_PLATFORM="linux-x86_64"
-ENABLED_DECODERS=("${@:5}")
-echo "Enabled decoders are ${ENABLED_DECODERS[@]}"
 
-echo "NDK path is ${NDK_PATH}"
-echo "FFMPEG_MODULE_PATH is ${FFMPEG_MODULE_PATH}"
-echo "Host platform is ${HOST_PLATFORM}"
-echo "ANDROID_ABI is ${ANDROID_ABI}"
-echo "Enabled decoders are ${ENABLED_DECODERS[@]}"
 
 
 cd "${FFMPEG_MODULE_PATH}/jni"
 
-rm -rf ffmpeg
+rm -rf libvpx
 
-git clone --depth=1 -b release/6.1  git://source.ffmpeg.org/ffmpeg
-cd ffmpeg
+git clone --depth=1 -b tags/v1.8.0  https://chromium.googlesource.com/webm/libvpx
+cd libvpx
 FFMPEG_PATH="$(pwd)"
 pwd
 
-JOBS=$(nproc 2> /dev/null || sysctl -n hw.ncpu 2> /dev/null || echo 4)
-echo "Using $JOBS jobs for make"
 
+# configuration parameters common to all architectures
+common_params="--disable-examples --disable-docs --enable-realtime-only"
+common_params+=" --disable-vp8 --disable-vp9-encoder --disable-webm-io"
+common_params+=" --disable-libyuv --disable-runtime-cpu-detect"
+common_params+=" --enable-external-build"
 
-COMMON_OPTIONS="
-    --target-os=android
-    --enable-static
-    --disable-shared
-    --disable-doc
-    --disable-programs
-    --disable-everything
-    --disable-avdevice
-    --disable-avformat
-    --disable-swscale
-    --disable-postproc
-    --disable-avfilter
-    --disable-symver
-    --enable-swresample
-    --extra-ldexeflags=-pie
-    --disable-v4l2-m2m
-    --disable-vulkan
-    --enable-libarcdav3a
-    --enable-decoders
-    --enable-decoder=libarcdav3a
-    "
-TOOLCHAIN_PREFIX="${NDK_PATH}/toolchains/llvm/prebuilt/${HOST_PLATFORM}/bin"
-for decoder in "${ENABLED_DECODERS[@]}"
-do
-    COMMON_OPTIONS="${COMMON_OPTIONS} --enable-decoder=${decoder}"
+# configuration parameters for various architectures
+arch[0]="armeabi-v7a"
+config[0]="--target=armv7-android-gcc --enable-neon --enable-neon-asm"
+
+arch[1]="x86"
+config[1]="--force-target=x86-android-gcc --disable-sse2"
+config[1]+=" --disable-sse3 --disable-ssse3 --disable-sse4_1 --disable-avx"
+config[1]+=" --disable-avx2 --enable-pic"
+
+arch[2]="arm64-v8a"
+config[2]="--force-target=armv8-android-gcc --enable-neon"
+
+arch[3]="x86_64"
+config[3]="--force-target=x86_64-android-gcc --disable-sse2"
+config[3]+=" --disable-sse3 --disable-ssse3 --disable-sse4_1 --disable-avx"
+config[3]+=" --disable-avx2 --enable-pic --disable-neon --disable-neon-asm"
+
+limit=$((${#arch[@]} - 1))
+
+# list of files allowed after running configure in each arch directory.
+# everything else will be removed.
+allowed_files="libvpx_srcs.txt vpx_config.c vpx_config.h vpx_scale_rtcd.h"
+allowed_files+=" vp8_rtcd.h vp9_rtcd.h vpx_version.h vpx_config.asm"
+allowed_files+=" vpx_dsp_rtcd.h libvpx.ver"
+
+remove_trailing_whitespace() {
+  perl -pi -e 's/\s\+$//' "$@"
+}
+
+convert_asm() {
+  for i in $(seq 0 ${limit}); do
+    while read file; do
+      case "${file}" in
+        *.asm.[sS])
+          # Some files may already have been processed (there are duplicated
+          # .asm.s files for vp8 in the armeabi/armeabi-v7a configurations).
+          file="libvpx/${file}"
+          if [[ ! -e "${file}" ]]; then
+            asm_file="${file%.[sS]}"
+            cat "${asm_file}" | libvpx/build/make/ads2gas.pl > "${file}"
+            remove_trailing_whitespace "${file}"
+            rm "${asm_file}"
+          fi
+          ;;
+      esac
+    done < libvpx_android_configs/${arch[${i}]}/libvpx_srcs.txt
+  done
+}
+
+extglob_status="$(shopt extglob | cut -f2)"
+shopt -s extglob
+for i in $(seq 0 ${limit}); do
+  mkdir -p "libvpx_android_configs/${arch[${i}]}"
+  pushd "libvpx_android_configs/${arch[${i}]}"
+
+  # configure and make
+  echo "build_android_configs: "
+  echo "configure ${config[${i}]} ${common_params}"
+  ../../libvpx/configure ${config[${i}]} ${common_params}
+  rm -f libvpx_srcs.txt
+  for f in ${allowed_files}; do
+    # the build system supports multiple different configurations. avoid
+    # failing out when, for example, vp8_rtcd.h is not part of a configuration
+    make "${f}" || true
+  done
+
+  # remove files that aren't needed
+  rm -rf !(${allowed_files// /|})
+  remove_trailing_whitespace *
+
+  popd
 done
 
-ARMV7_CLANG="${TOOLCHAIN_PREFIX}/armv7a-linux-androideabi${ANDROID_ABI}-clang"
-if [[ -e "${TOOLCHAIN_PREFIX}" && ! -e "$ARMV7_CLANG" ]]
-then
-    echo "AVMv7 Clang compiler with path $ARMV7_CLANG does not exist"
-    echo "It's likely your NDK version doesn't support ANDROID_ABI $ANDROID_ABI"
-    echo "Either use older version of NDK or raise ANDROID_ABI (be aware that ANDROID_ABI must not be greater than your application's minSdk)"
-    exit 1
-fi
-ANDROID_ABI_64BIT="$ANDROID_ABI"
-if [[ "$ANDROID_ABI_64BIT" -lt 21 ]]
-then
-    echo "Using ANDROID_ABI 21 for 64-bit architectures"
-    ANDROID_ABI_64BIT=21
+# restore extglob status as it was before
+if [[ "${extglob_status}" == "off" ]]; then
+  shopt -u extglob
 fi
 
-./configure \
-    --libdir=android-libs/armeabi-v7a \
-    --arch=arm \
-    --cpu=armv7-a \
-    --cross-prefix="${TOOLCHAIN_PREFIX}/armv7a-linux-androideabi${ANDROID_ABI}-" \
-    --nm="${TOOLCHAIN_PREFIX}/llvm-nm" \
-    --ar="${TOOLCHAIN_PREFIX}/llvm-ar" \
-    --ranlib="${TOOLCHAIN_PREFIX}/llvm-ranlib" \
-    --strip="${TOOLCHAIN_PREFIX}/llvm-strip" \
-    --extra-cflags="-march=armv7-a -mfloat-abi=softfp" \
-    --extra-ldflags="-Wl,--fix-cortex-a8" \
-    ${COMMON_OPTIONS}
-make -j$JOBS
-make install-libs
-make clean
-./configure \
-    --libdir=android-libs/arm64-v8a \
-    --arch=aarch64 \
-    --cpu=armv8-a \
-    --cross-prefix="${TOOLCHAIN_PREFIX}/aarch64-linux-android${ANDROID_ABI_64BIT}-" \
-    --nm="${TOOLCHAIN_PREFIX}/llvm-nm" \
-    --ar="${TOOLCHAIN_PREFIX}/llvm-ar" \
-    --ranlib="${TOOLCHAIN_PREFIX}/llvm-ranlib" \
-    --strip="${TOOLCHAIN_PREFIX}/llvm-strip" \
-    ${COMMON_OPTIONS}
-make -j$JOBS
-make install-libs
-make clean
-./configure \
-    --libdir=android-libs/x86 \
-    --arch=x86 \
-    --cpu=i686 \
-    --cross-prefix="${TOOLCHAIN_PREFIX}/i686-linux-android${ANDROID_ABI}-" \
-    --nm="${TOOLCHAIN_PREFIX}/llvm-nm" \
-    --ar="${TOOLCHAIN_PREFIX}/llvm-ar" \
-    --ranlib="${TOOLCHAIN_PREFIX}/llvm-ranlib" \
-    --strip="${TOOLCHAIN_PREFIX}/llvm-strip" \
-    --disable-asm \
-    ${COMMON_OPTIONS}
-make -j$JOBS
-make install-libs
-make clean
-./configure \
-    --libdir=android-libs/x86_64 \
-    --arch=x86_64 \
-    --cpu=x86-64 \
-    --cross-prefix="${TOOLCHAIN_PREFIX}/x86_64-linux-android${ANDROID_ABI_64BIT}-" \
-    --nm="${TOOLCHAIN_PREFIX}/llvm-nm" \
-    --ar="${TOOLCHAIN_PREFIX}/llvm-ar" \
-    --ranlib="${TOOLCHAIN_PREFIX}/llvm-ranlib" \
-    --strip="${TOOLCHAIN_PREFIX}/llvm-strip" \
-    --disable-asm \
-    ${COMMON_OPTIONS}
-make -j$JOBS
-make install-libs
-make clean
+convert_asm
+
+echo "Generated android config files."
