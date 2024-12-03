@@ -36,7 +36,7 @@ cd "${FFMPEG_MODULE_PATH}/jni"
 
 rm -rf libvpx
 
-git clone --depth=1 -b tags/v1.8.0  https://chromium.googlesource.com/webm/libvpx
+git clone --depth=1 -b tags/v1.8.0  git@github.com:webmproject/libvpx.git
 cd libvpx
 FFMPEG_PATH="$(pwd)"
 pwd
