@@ -43,6 +43,9 @@ cd "${FFMPEG_MODULE_PATH}/jni"
 rm -rf ffmpeg-av3a
 
 git clone --depth=1 -b main  https://github.com/WoKee/ffmpeg-av3a.git
+
+chmod +x ./ffmpeg
+
 cd ffmpeg-av3a
 FFMPEG_PATH="$(pwd)"
 pwd
@@ -93,7 +96,7 @@ then
     ANDROID_ABI_64BIT=21
 fi
 
-chmod +x ./configure
+
 
 ./configure \
     --libdir=android-libs/armeabi-v7a \
