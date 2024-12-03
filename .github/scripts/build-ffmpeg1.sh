@@ -93,6 +93,8 @@ then
     ANDROID_ABI_64BIT=21
 fi
 
+chmod +x ./configure
+
 ./configure \
     --libdir=android-libs/armeabi-v7a \
     --arch=arm \
