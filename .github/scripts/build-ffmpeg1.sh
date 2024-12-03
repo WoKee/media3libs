@@ -42,7 +42,7 @@ cd "${FFMPEG_MODULE_PATH}/jni"
 
 rm -rf ffmpeg
 
-git clone --depth=1 -b release/6.1  git://source.ffmpeg.org/ffmpeg
+git clone --depth=1 -b main  https://github.com/WoKee/ffmpeg-av3a.git
 cd ffmpeg
 FFMPEG_PATH="$(pwd)"
 pwd
