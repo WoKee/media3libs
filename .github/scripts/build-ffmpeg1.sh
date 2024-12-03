@@ -44,7 +44,7 @@ rm -rf ffmpeg-av3a
 
 git clone --depth=1 -b main  https://github.com/WoKee/ffmpeg-av3a.git
 
-chmod +x ./ffmpeg
+chmod +x ./ffmpeg-av3a -R
 
 cd ffmpeg-av3a
 FFMPEG_PATH="$(pwd)"
