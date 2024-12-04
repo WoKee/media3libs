@@ -76,9 +76,6 @@ COMMON_OPTIONS="
     --disable-v4l2-m2m
     --disable-vulkan
     --enable-libarcdav3a
-    --enable-decoders
-    --enable-decoder=libarcdav3a
-    --disable-decoder=av1
     "
 TOOLCHAIN_PREFIX="${NDK_PATH}/toolchains/llvm/prebuilt/${HOST_PLATFORM}/bin"
 for decoder in "${ENABLED_DECODERS[@]}"
