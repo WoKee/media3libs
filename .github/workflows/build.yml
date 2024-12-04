@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rabbitknight/media
-          ref: av3a_1.4.1
+          ref: ffmpeg_1.4.1
           path: media
 
       - uses: actions/setup-java@v4
