@@ -46,7 +46,11 @@ git clone --depth=1 -b main  https://github.com/WoKee/ffmpeg-av3a.git
 
 chmod +x ./ffmpeg-av3a -R
 
-cd ffmpeg-av3a
+mv ffmpeg-av3a ffmpeg
+
+chmod +x ./ffmpeg -R
+
+cd ffmpeg
 FFMPEG_PATH="$(pwd)"
 pwd
 
@@ -73,6 +77,7 @@ COMMON_OPTIONS="
     --disable-vulkan
     --enable-libarcdav3a
     --enable-decoders
+    --enable-decoder=libarcdav3a
     --disable-decoder=av1
     "
 TOOLCHAIN_PREFIX="${NDK_PATH}/toolchains/llvm/prebuilt/${HOST_PLATFORM}/bin"
